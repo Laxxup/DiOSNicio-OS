@@ -1,25 +1,22 @@
 #!/bin/bash
 set -e
 
-# Nombre fijo del ISO (para GitHub Actions y local)
 ISO_NAME="ITCM_OS_v1.iso"
-echo "=== Construyendo ITCM_OS - Versión con autologin corregido ==="
-echo "ISO final se generará como: $ISO_NAME"
+echo "=== Construyendo ITCM_OS - El Fix Definitivo ==="
 
 echo "=== Instalando herramientas necesarias en el host ==="
 sudo apt-get update -qq
 sudo apt-get install -y -qq debootstrap squashfs-tools xorriso grub-pc-bin grub-efi-amd64-bin mtools wget ca-certificates
 
 echo "=== PASO 1: Construyendo sistema base mínima (Devuan Daedalus) ==="
-sudo rm -rf ./chroot   # Limpieza previa para evitar residuos
-
-# EL PUENTE MÁGICO: Le enseñamos a Ubuntu qué es Daedalus
+sudo rm -rf ./chroot
+# EL PUENTE MÁGICO PARA GITHUB ACTIONS (No lo borres)
 sudo ln -sf /usr/share/debootstrap/scripts/bookworm /usr/share/debootstrap/scripts/daedalus || true
 
-# Ahora sí, descargamos usando el nombre real de Devuan
 sudo debootstrap --no-check-gpg --variant=minbase \
     --include=linux-image-amd64,sysvinit-core,sudo,locales,tzdata \
     daedalus ./chroot http://deb.devuan.org/merged
+
 echo "=== Montando sistemas de archivos virtuales ==="
 sudo chroot ./chroot mount -t proc none /proc
 sudo chroot ./chroot mount -t sysfs none /sys
@@ -46,17 +43,25 @@ echo "LANG=es_MX.UTF-8" | sudo tee ./chroot/etc/locale.conf
 echo "America/Monterrey" | sudo tee ./chroot/etc/timezone
 DEBIAN_FRONTEND=noninteractive sudo chroot ./chroot dpkg-reconfigure --frontend noninteractive tzdata
 
-echo "=== Personalización del sistema (skeleton, tema, fondo, etc.) ==="
-# Wallpaper global
-sudo mkdir -p ./chroot/usr/share/backgrounds/
-sudo cp wallpaperITCMOS.jpg ./chroot/usr/share/backgrounds/itcm-wallpaper.jpg 2>/dev/null || echo "Advertencia: wallpaperITCMOS.jpg no encontrado, el fondo quedará por defecto"
+echo "=== CREACIÓN DEL USUARIO Y BYPASS DE SEGURIDAD ==="
+sudo chroot ./chroot groupadd -r autologin || true
+sudo chroot ./chroot groupadd -r nopasswdlogin || true
+# Creamos al usuario 'alumno' y lo metemos a todos los grupos de sistema
+sudo chroot ./chroot useradd -m -c "Alumno ITCM" -G sudo,video,audio,netdev,plugdev,autologin,nopasswdlogin -s /bin/bash alumno
+# Le asignamos la contraseña 'alumno' para saltar el bloqueo de seguridad de PAM
+echo "alumno:alumno" | sudo chroot ./chroot chpasswd
+# Hack maestro: Permitimos que 'alumno' ejecute sudo SIN CONTRASEÑA
+echo "alumno ALL=(ALL) NOPASSWD: ALL" | sudo tee ./chroot/etc/sudoers.d/alumno
+sudo chmod 0440 ./chroot/etc/sudoers.d/alumno
 
-# Tema Atmospheric
+echo "=== Personalización del sistema (skeleton, tema, fondo, etc.) ==="
+sudo mkdir -p ./chroot/usr/share/backgrounds/
+sudo cp wallpaperITCMOS.jpg ./chroot/usr/share/backgrounds/itcm-wallpaper.jpg 2>/dev/null || true
+
 sudo chroot ./chroot git -c http.sslVerify=false clone https://github.com/Suazo-kun/LocOS-Atmospheric-Theme /tmp/LocOS-Atmospheric-Theme
-sudo chroot ./chroot bash -c "cd /tmp/LocOS-Atmospheric-Theme && sed -i 's/sudo //g' install.sh && chmod +x install.sh && ./install.sh || echo 'Tema no se instaló correctamente'"
+sudo chroot ./chroot bash -c "cd /tmp/LocOS-Atmospheric-Theme && sed -i 's/sudo //g' install.sh && chmod +x install.sh && ./install.sh" || true
 sudo rm -rf ./chroot/tmp/LocOS-Atmospheric-Theme
 
-# Skeleton
 sudo mkdir -p ./chroot/etc/skel/.config/{pcmanfm/LXDE,lxsession/LXDE,openbox,lxpanel/LXDE/panels,autostart} \
               ./chroot/etc/skel/Desktop
 
@@ -82,7 +87,6 @@ sNet/ThemeName=Atmospheric-Theme
 EOF
 
 sudo cp ./chroot/etc/xdg/openbox/LXDE-rc.xml ./chroot/etc/skel/.config/openbox/lxde-rc.xml 2>/dev/null || true
-# CORRECCIÓN: Regex ajustado para no romper la línea completa en Openbox
 sudo sed -i 's/<name>.*<\/name>/<name>Atmospheric-Theme<\/name>/' ./chroot/etc/skel/.config/openbox/lxde-rc.xml 2>/dev/null || true
 
 sudo cp ./chroot/usr/share/lxpanel/profile/LXDE/panels/panel ./chroot/etc/skel/.config/lxpanel/LXDE/panels/panel 2>/dev/null || true
@@ -109,16 +113,16 @@ sudo chmod +x ./chroot/etc/skel/Desktop/Instalar_ITCM_OS.desktop
 
 sudo bash -c 'echo "neofetch" >> ./chroot/etc/skel/.bashrc'
 
-# AUTOLOGIN LIGHTDM
+# Copiamos la customización directamente a la casa del alumno
+sudo cp -r ./chroot/etc/skel/. ./chroot/home/alumno/
+sudo chroot ./chroot chown -R alumno:alumno /home/alumno
+
 echo "=== Configurando autologin directo como alumno ==="
 sudo mkdir -p ./chroot/etc/lightdm/lightdm.conf.d
 cat << 'EOF' | sudo tee ./chroot/etc/lightdm/lightdm.conf.d/99-live-autologin.conf
 [Seat:*]
 autologin-user=alumno
 autologin-user-timeout=0
-greeter-hide-users=true
-allow-guest=false
-greeter-show-manual-login=false
 user-session=LXDE
 EOF
 
@@ -142,13 +146,7 @@ cat << 'EOF' | sudo tee image/boot/grub/grub.cfg
 set default=0
 set timeout=3
 menuentry "ITCM_OS - Instituto Tecnologico de Ciudad Madero (Live)" {
-    linux /live/vmlinuz boot=live components quiet splash \
-        live-config.username=alumno \
-        live-config.user-fullname="Alumno ITCM" \
-        live-config.user-default-groups="audio cdrom dip floppy video plugdev netdev scanner bluetooth sudo" \
-        live-config.hostname=itcm-os-live \
-        live-config.locales=es_MX.UTF-8 \
-        live-config.keyboard-layouts=latam
+    linux /live/vmlinuz boot=live components quiet splash live-config.username=alumno live-config.user-fullname="Alumno ITCM" live-config.locales=es_MX.UTF-8 live-config.keyboard-layouts=latam
     initrd /live/initrd
 }
 EOF
@@ -159,5 +157,3 @@ grub-mkrescue -o "$ISO_NAME" image
 
 echo ""
 echo "¡Construcción finalizada!"
-ls -lh "$ISO_NAME"
-echo "Graba con Ventoy, Rufus (DD mode) o Etcher."
