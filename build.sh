@@ -14,21 +14,26 @@ sudo chroot ./chroot mount -t devtmpfs none /dev
 
 echo "=== PASO 2: Instalando Entorno y LIVE BOOT ==="
 sudo chroot ./chroot apt-get update
-# ¡Agregamos 'plank' a la lista para el dock inferior!
-sudo chroot ./chroot apt-get install -y --no-install-recommends xserver-xorg lxde lightdm lightdm-gtk-greeter network-manager neofetch console-setup live-boot live-config live-config-sysvinit git calamares calamares-settings-debian plank
+# Metemos todo tu kit ligero, Plank, Calamares y Extrepo
+sudo chroot ./chroot apt-get install -y --no-install-recommends xserver-xorg lxde lightdm lightdm-gtk-greeter network-manager neofetch console-setup live-boot live-config live-config-sysvinit git calamares calamares-settings-debian plank mousepad galculator htop gparted qpdfview extrepo
 
-echo "=== Configurando ROOT ==="
+echo "=== Instalando LibreWolf ==="
+sudo chroot ./chroot extrepo enable librewolf
+sudo chroot ./chroot apt-get update
+sudo chroot ./chroot apt-get install -y librewolf
+
+echo "=== Configurando Usuario Temporal 'alumno' ==="
+sudo chroot ./chroot groupadd -r autologin || true
+sudo chroot ./chroot useradd -m -c "Alumno ITCM" -G sudo,video,audio,netdev,plugdev,autologin -s /bin/bash alumno
+echo "alumno:alumno" | sudo chroot ./chroot chpasswd
 echo "root:root" | sudo chroot ./chroot chpasswd
 
-sudo chroot ./chroot bash -c "sed -i '/user != root/d' /etc/pam.d/lightdm-autologin || true"
-sudo chroot ./chroot bash -c "sed -i 's/^#autologin-user=.*/autologin-user=root/' /etc/lightdm/lightdm.conf || true"
-sudo chroot ./chroot bash -c "sed -i 's/^#autologin-user-timeout=.*/autologin-user-timeout=0/' /etc/lightdm/lightdm.conf || true"
-
+# Autologin seguro
 sudo mkdir -p ./chroot/etc/lightdm/lightdm.conf.d/
 cat << 'EOF' | sudo tee ./chroot/etc/lightdm/lightdm.conf.d/01_autologin.conf
 [Seat:*]
 autologin-guest=false
-autologin-user=root
+autologin-user=alumno
 autologin-user-timeout=0
 user-session=LXDE
 EOF
@@ -40,13 +45,18 @@ echo "LANG=es_MX.UTF-8" | sudo tee ./chroot/etc/locale.conf
 echo "America/Monterrey" | sudo tee ./chroot/etc/timezone
 DEBIAN_FRONTEND=noninteractive sudo chroot ./chroot dpkg-reconfigure tzdata
 
-echo "=== Customizando LXDE (Wallpaper, Tema y PLANK) ==="
-# 1. Wallpaper
+echo "=== Customizando LXDE (El toque Maestro) ==="
 sudo mkdir -p ./chroot/usr/share/backgrounds/
 sudo cp wallpaperITCMOS.jpg ./chroot/usr/share/backgrounds/itcm-wallpaper.jpg
 
-sudo mkdir -p ./chroot/etc/xdg/pcmanfm/LXDE/
-cat << 'EOF' | sudo tee ./chroot/etc/xdg/pcmanfm/LXDE/pcmanfm.conf
+# Instalamos el Tema Atmospheric en el sistema base
+sudo chroot ./chroot git -c http.sslVerify=false clone https://github.com/Suazo-kun/LocOS-Atmospheric-Theme /tmp/LocOS-Atmospheric-Theme
+sudo chroot ./chroot bash -c "cd /tmp/LocOS-Atmospheric-Theme && sed -i 's/sudo //g' install.sh && chmod +x install.sh && ./install.sh"
+sudo rm -rf ./chroot/tmp/LocOS-Atmospheric-Theme
+
+# INYECCIÓN DIRECTA AL USUARIO ALUMNO
+sudo mkdir -p ./chroot/home/alumno/.config/pcmanfm/LXDE/
+cat << 'EOF' | sudo tee ./chroot/home/alumno/.config/pcmanfm/LXDE/desktop.conf
 [desktop]
 wallpaper_mode=crop
 wallpaper_common=1
@@ -60,19 +70,24 @@ show_trash=1
 show_mounts=1
 EOF
 
-# 2. Tema Atmospheric
-sudo chroot ./chroot git -c http.sslVerify=false clone https://github.com/Suazo-kun/LocOS-Atmospheric-Theme /tmp/LocOS-Atmospheric-Theme
-sudo chroot ./chroot bash -c "cd /tmp/LocOS-Atmospheric-Theme && sed -i 's/sudo //g' install.sh && chmod +x install.sh && ./install.sh"
-sudo rm -rf ./chroot/tmp/LocOS-Atmospheric-Theme
-sudo chroot ./chroot bash -c "sed -i 's/sNet\/ThemeName=.*/sNet\/ThemeName=Atmospheric-Theme/g' /etc/xdg/lxsession/LXDE/desktop.conf || true"
+sudo mkdir -p ./chroot/home/alumno/.config/lxsession/LXDE/
+cat << 'EOF' | sudo tee ./chroot/home/alumno/.config/lxsession/LXDE/desktop.conf
+[Session]
+window_manager=openbox-lxde
+[GTK]
+sNet/ThemeName=Atmospheric-Theme
+EOF
 
-# 3. Moviendo la barra de LXDE hacia arriba
-sudo chroot ./chroot bash -c "sed -i 's/edge=bottom/edge=top/g' /usr/share/lxpanel/profile/LXDE/panels/panel || true"
-sudo chroot ./chroot bash -c "sed -i 's/edge=bottom/edge=top/g' /etc/xdg/lxpanel/LXDE/panels/panel || true"
+sudo mkdir -p ./chroot/home/alumno/.config/lxpanel/LXDE/panels/
+sudo cp ./chroot/usr/share/lxpanel/profile/LXDE/panels/panel ./chroot/home/alumno/.config/lxpanel/LXDE/panels/panel || true
+sudo sed -i 's/edge=bottom/edge=top/g' ./chroot/home/alumno/.config/lxpanel/LXDE/panels/panel || true
 
-# 4. Haciendo que Plank inicie automáticamente
-sudo mkdir -p ./chroot/etc/xdg/autostart/
-cat << 'EOF' | sudo tee ./chroot/etc/xdg/autostart/plank.desktop
+sudo mkdir -p ./chroot/home/alumno/.config/openbox/
+sudo cp ./chroot/etc/xdg/openbox/LXDE-rc.xml ./chroot/home/alumno/.config/openbox/lxde-rc.xml || true
+sudo sed -i 's/<name>.*<\/name>/<name>Atmospheric-Theme<\/name>/' ./chroot/home/alumno/.config/openbox/lxde-rc.xml || true
+
+sudo mkdir -p ./chroot/home/alumno/.config/autostart/
+cat << 'EOF' | sudo tee ./chroot/home/alumno/.config/autostart/plank.desktop
 [Desktop Entry]
 Type=Application
 Exec=plank
@@ -82,26 +97,26 @@ X-GNOME-Autostart-enabled=true
 Name=Plank
 EOF
 
-# 5. Arreglando el entorno de Root para que cargue la barra
-sudo mkdir -p ./chroot/root/.config/lxpanel/LXDE/panels/
-sudo cp ./chroot/usr/share/lxpanel/profile/LXDE/panels/panel ./chroot/root/.config/lxpanel/LXDE/panels/panel || true
-
-echo "=== Creando Icono de Instalador ==="
-sudo mkdir -p ./chroot/root/Desktop
-cat << 'EOF' | sudo tee ./chroot/root/Desktop/Instalar_ITCM_OS.desktop
+echo "=== Icono de Instalador ==="
+sudo mkdir -p ./chroot/home/alumno/Desktop
+cat << 'EOF' | sudo tee ./chroot/home/alumno/Desktop/Instalar_ITCM_OS.desktop
 [Desktop Entry]
 Version=1.0
 Type=Application
 Name=Instalar ITCM_OS
-Exec=calamares
+Comment=Instalar el sistema de Madero en el disco duro
+Exec=sudo calamares
 Icon=drive-harddisk
 Terminal=false
 StartupNotify=true
 EOF
-sudo chmod +x ./chroot/root/Desktop/Instalar_ITCM_OS.desktop
+sudo chmod +x ./chroot/home/alumno/Desktop/Instalar_ITCM_OS.desktop
 
 echo "=== Terminal Hacker ==="
-sudo bash -c 'echo "neofetch" >> ./chroot/root/.bashrc'
+sudo bash -c 'echo "neofetch" >> ./chroot/home/alumno/.bashrc'
+
+# Arreglamos los permisos para que 'alumno' sea dueño de todo esto
+sudo chroot ./chroot chown -R alumno:alumno /home/alumno
 
 echo "=== Limpiando ==="
 sudo chroot ./chroot umount /proc /sys /dev
@@ -120,8 +135,8 @@ mkdir -p image/boot/grub
 cat << 'EOF' | sudo tee image/boot/grub/grub.cfg
 set default=0
 set timeout=5
-menuentry "ITCM_OS Live (Root Session) - Tec de Madero" {
-    linux /live/vmlinuz boot=live components quiet splash live-config.username=root
+menuentry "ITCM_OS Live - Tec de Madero" {
+    linux /live/vmlinuz boot=live components quiet splash
     initrd /live/initrd
 }
 EOF
