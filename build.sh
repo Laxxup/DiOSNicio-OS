@@ -61,7 +61,7 @@ EOF
 
 # 2. Instalando el LocOS-Atmospheric-Theme
 echo "Clonando e instalando el tema..."
-sudo chroot ./chroot git clone https://github.com/Suazo-kun/LocOS-Atmospheric-Theme /tmp/LocOS-Atmospheric-Theme
+sudo chroot ./chroot git -c http.sslVerify=false clone https://github.com/Suazo-kun/LocOS-Atmospheric-Theme /tmp/LocOS-Atmospheric-Theme
 # Le quitamos los "sudo" al script original para que no trabe la compilación automatizada
 sudo chroot ./chroot bash -c "cd /tmp/LocOS-Atmospheric-Theme && sed -i 's/sudo //g' install.sh && chmod +x install.sh && ./install.sh"
 sudo rm -rf ./chroot/tmp/LocOS-Atmospheric-Theme
