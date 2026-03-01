@@ -14,29 +14,12 @@ sudo chroot ./chroot mount -t devtmpfs none /dev
 
 echo "=== PASO 2: Instalando Entorno y LIVE BOOT ==="
 sudo chroot ./chroot apt-get update
-# Metemos todo tu kit ligero, Plank, Calamares y Extrepo
 sudo chroot ./chroot apt-get install -y --no-install-recommends xserver-xorg lxde lightdm lightdm-gtk-greeter network-manager neofetch console-setup live-boot live-config live-config-sysvinit git calamares calamares-settings-debian plank mousepad galculator htop gparted qpdfview extrepo
 
 echo "=== Instalando LibreWolf ==="
 sudo chroot ./chroot extrepo enable librewolf
 sudo chroot ./chroot apt-get update
 sudo chroot ./chroot apt-get install -y librewolf
-
-echo "=== Configurando Usuario Temporal 'alumno' ==="
-sudo chroot ./chroot groupadd -r autologin || true
-sudo chroot ./chroot useradd -m -c "Alumno ITCM" -G sudo,video,audio,netdev,plugdev,autologin -s /bin/bash alumno
-echo "alumno:alumno" | sudo chroot ./chroot chpasswd
-echo "root:root" | sudo chroot ./chroot chpasswd
-
-# Autologin seguro
-sudo mkdir -p ./chroot/etc/lightdm/lightdm.conf.d/
-cat << 'EOF' | sudo tee ./chroot/etc/lightdm/lightdm.conf.d/01_autologin.conf
-[Seat:*]
-autologin-guest=false
-autologin-user=alumno
-autologin-user-timeout=0
-user-session=LXDE
-EOF
 
 echo "=== Locales ==="
 echo "es_MX.UTF-8 UTF-8" | sudo tee ./chroot/etc/locale.gen
@@ -45,18 +28,26 @@ echo "LANG=es_MX.UTF-8" | sudo tee ./chroot/etc/locale.conf
 echo "America/Monterrey" | sudo tee ./chroot/etc/timezone
 DEBIAN_FRONTEND=noninteractive sudo chroot ./chroot dpkg-reconfigure tzdata
 
-echo "=== Customizando LXDE (El toque Maestro) ==="
+echo "=== Customizando (Modo Skeleton) ==="
+# 1. Wallpaper Global
 sudo mkdir -p ./chroot/usr/share/backgrounds/
 sudo cp wallpaperITCMOS.jpg ./chroot/usr/share/backgrounds/itcm-wallpaper.jpg
 
-# Instalamos el Tema Atmospheric en el sistema base
+# 2. Inyección del Tema Atmospheric
 sudo chroot ./chroot git -c http.sslVerify=false clone https://github.com/Suazo-kun/LocOS-Atmospheric-Theme /tmp/LocOS-Atmospheric-Theme
 sudo chroot ./chroot bash -c "cd /tmp/LocOS-Atmospheric-Theme && sed -i 's/sudo //g' install.sh && chmod +x install.sh && ./install.sh"
 sudo rm -rf ./chroot/tmp/LocOS-Atmospheric-Theme
 
-# INYECCIÓN DIRECTA AL USUARIO ALUMNO
-sudo mkdir -p ./chroot/home/alumno/.config/pcmanfm/LXDE/
-cat << 'EOF' | sudo tee ./chroot/home/alumno/.config/pcmanfm/LXDE/desktop.conf
+# 3. La Magia del Skeleton (Plantilla para el usuario en vivo)
+sudo mkdir -p ./chroot/etc/skel/.config/pcmanfm/LXDE/
+sudo mkdir -p ./chroot/etc/skel/.config/lxsession/LXDE/
+sudo mkdir -p ./chroot/etc/skel/.config/openbox/
+sudo mkdir -p ./chroot/etc/skel/.config/lxpanel/LXDE/panels/
+sudo mkdir -p ./chroot/etc/skel/.config/autostart/
+sudo mkdir -p ./chroot/etc/skel/Desktop/
+
+# - Fijamos Wallpaper
+cat << 'EOF' | sudo tee ./chroot/etc/skel/.config/pcmanfm/LXDE/desktop.conf
 [desktop]
 wallpaper_mode=crop
 wallpaper_common=1
@@ -70,53 +61,41 @@ show_trash=1
 show_mounts=1
 EOF
 
-sudo mkdir -p ./chroot/home/alumno/.config/lxsession/LXDE/
-cat << 'EOF' | sudo tee ./chroot/home/alumno/.config/lxsession/LXDE/desktop.conf
+# - Fijamos Tema Oscuro
+cat << 'EOF' | sudo tee ./chroot/etc/skel/.config/lxsession/LXDE/desktop.conf
 [Session]
 window_manager=openbox-lxde
 [GTK]
 sNet/ThemeName=Atmospheric-Theme
 EOF
+sudo cp ./chroot/etc/xdg/openbox/LXDE-rc.xml ./chroot/etc/skel/.config/openbox/lxde-rc.xml || true
+sudo sed -i 's/<name>.*<\/name>/<name>Atmospheric-Theme<\/name>/' ./chroot/etc/skel/.config/openbox/lxde-rc.xml || true
 
-sudo mkdir -p ./chroot/home/alumno/.config/lxpanel/LXDE/panels/
-sudo cp ./chroot/usr/share/lxpanel/profile/LXDE/panels/panel ./chroot/home/alumno/.config/lxpanel/LXDE/panels/panel || true
-sudo sed -i 's/edge=bottom/edge=top/g' ./chroot/home/alumno/.config/lxpanel/LXDE/panels/panel || true
+# - Movemos Barra Arriba
+sudo cp ./chroot/usr/share/lxpanel/profile/LXDE/panels/panel ./chroot/etc/skel/.config/lxpanel/LXDE/panels/panel || true
+sudo sed -i 's/edge=bottom/edge=top/g' ./chroot/etc/skel/.config/lxpanel/LXDE/panels/panel || true
 
-sudo mkdir -p ./chroot/home/alumno/.config/openbox/
-sudo cp ./chroot/etc/xdg/openbox/LXDE-rc.xml ./chroot/home/alumno/.config/openbox/lxde-rc.xml || true
-sudo sed -i 's/<name>.*<\/name>/<name>Atmospheric-Theme<\/name>/' ./chroot/home/alumno/.config/openbox/lxde-rc.xml || true
-
-sudo mkdir -p ./chroot/home/alumno/.config/autostart/
-cat << 'EOF' | sudo tee ./chroot/home/alumno/.config/autostart/plank.desktop
+# - Iniciamos Plank Automático
+cat << 'EOF' | sudo tee ./chroot/etc/skel/.config/autostart/plank.desktop
 [Desktop Entry]
 Type=Application
 Exec=plank
-Hidden=false
-NoDisplay=false
-X-GNOME-Autostart-enabled=true
 Name=Plank
 EOF
 
-echo "=== Icono de Instalador ==="
-sudo mkdir -p ./chroot/home/alumno/Desktop
-cat << 'EOF' | sudo tee ./chroot/home/alumno/Desktop/Instalar_ITCM_OS.desktop
+# - Icono Instalador y Neofetch
+cat << 'EOF' | sudo tee ./chroot/etc/skel/Desktop/Instalar_ITCM_OS.desktop
 [Desktop Entry]
 Version=1.0
 Type=Application
 Name=Instalar ITCM_OS
-Comment=Instalar el sistema de Madero en el disco duro
 Exec=sudo calamares
 Icon=drive-harddisk
 Terminal=false
 StartupNotify=true
 EOF
-sudo chmod +x ./chroot/home/alumno/Desktop/Instalar_ITCM_OS.desktop
-
-echo "=== Terminal Hacker ==="
-sudo bash -c 'echo "neofetch" >> ./chroot/home/alumno/.bashrc'
-
-# Arreglamos los permisos para que 'alumno' sea dueño de todo esto
-sudo chroot ./chroot chown -R alumno:alumno /home/alumno
+sudo chmod +x ./chroot/etc/skel/Desktop/Instalar_ITCM_OS.desktop
+sudo bash -c 'echo "neofetch" >> ./chroot/etc/skel/.bashrc'
 
 echo "=== Limpiando ==="
 sudo chroot ./chroot umount /proc /sys /dev
@@ -130,13 +109,14 @@ echo "=== Kernel e Initrd ==="
 sudo cp chroot/boot/vmlinuz-* image/live/vmlinuz
 sudo cp chroot/boot/initrd.img-* image/live/initrd
 
-echo "=== Creando Menu GRUB ==="
+echo "=== Creando Menu GRUB (El Motor Nativo) ==="
 mkdir -p image/boot/grub
 cat << 'EOF' | sudo tee image/boot/grub/grub.cfg
 set default=0
-set timeout=5
-menuentry "ITCM_OS Live - Tec de Madero" {
-    linux /live/vmlinuz boot=live components quiet splash
+set timeout=2
+menuentry "ITCM_OS - Instituto Tecnologico de Ciudad Madero" {
+    # Aquí es donde ocurre todo: live-config crea al alumno y hace autologin
+    linux /live/vmlinuz boot=live components quiet splash live-config.username=alumno live-config.user-fullname="Alumno ITCM"
     initrd /live/initrd
 }
 EOF
