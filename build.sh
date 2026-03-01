@@ -14,8 +14,8 @@ sudo chroot ./chroot mount -t devtmpfs none /dev
 
 echo "=== PASO 2: Instalando Entorno y LIVE BOOT ==="
 sudo chroot ./chroot apt-get update
-# ¡AQUÍ ESTÁ LA MAGIA! Agregamos live-boot y live-config
-sudo chroot ./chroot apt-get install -y --no-install-recommends lxde-core lightdm network-manager neofetch console-setup live-boot live-config
+# ¡Aquí está la magia! Agregamos xserver-xorg para el entorno gráfico
+sudo chroot ./chroot apt-get install -y --no-install-recommends xserver-xorg lxde-core lightdm network-manager neofetch console-setup live-boot live-config
 
 echo "=== Locales ==="
 echo "es_MX.UTF-8 UTF-8" | sudo tee ./chroot/etc/locale.gen
@@ -23,6 +23,10 @@ sudo chroot ./chroot locale-gen
 echo "LANG=es_MX.UTF-8" | sudo tee ./chroot/etc/locale.conf
 echo "America/Monterrey" | sudo tee ./chroot/etc/timezone
 DEBIAN_FRONTEND=noninteractive sudo chroot ./chroot dpkg-reconfigure tzdata
+
+echo "=== Contraseña de Rescate ==="
+# Por si algo falla y nos manda a la terminal, tener acceso root
+echo "root:root" | sudo chroot ./chroot chpasswd
 
 echo "=== Wallpaper ==="
 sudo mkdir -p ./chroot/usr/share/backgrounds/
@@ -40,13 +44,14 @@ echo "=== Kernel e Initrd ==="
 sudo cp chroot/boot/vmlinuz-* image/live/vmlinuz
 sudo cp chroot/boot/initrd.img-* image/live/initrd
 
-echo "=== Creando Menu GRUB (El Mapa) ==="
+echo "=== Creando Menu GRUB ==="
 mkdir -p image/boot/grub
 cat << 'EOF' | sudo tee image/boot/grub/grub.cfg
 set default=0
 set timeout=5
 menuentry "ITCM_OS - Instituto Tecnologico de Ciudad Madero" {
-    linux /live/vmlinuz boot=live quiet splash
+    # Aquí le decimos a live-config que cree al usuario "alumno" y haga autologin
+    linux /live/vmlinuz boot=live quiet splash live-config.username=alumno live-config.user-fullname="Alumno ITCM"
     initrd /live/initrd
 }
 EOF
