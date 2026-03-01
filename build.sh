@@ -12,10 +12,10 @@ sudo apt-get install -y -qq debootstrap squashfs-tools xorriso grub-pc-bin grub-
 
 echo "=== PASO 1: Construyendo sistema base mínima (Devuan Daedalus) ==="
 sudo rm -rf ./chroot   # Limpieza previa para evitar residuos
-# CORRECCIÓN: Usamos 'daedalus' en lugar de 'bookworm' para el repositorio de Devuan
+# Volvemos a tu hack original: Usamos el script de bookworm apuntando al repo de Devuan
 sudo debootstrap --no-check-gpg --variant=minbase \
-    --include=linux-image-amd64,sysvinit-core,sudo,locales,tzdata \
-    daedalus ./chroot http://deb.devuan.org/merged
+ --include=linux-image-amd64,sysvinit-core,sudo,locales,tzdata \
+ bookworm ./chroot http://deb.devuan.org/merged
 
 echo "=== Montando sistemas de archivos virtuales ==="
 sudo chroot ./chroot mount -t proc none /proc
