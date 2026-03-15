@@ -1,4 +1,4 @@
-name: Generar ITCM_OS ISO
+name: Generar DiosnicioOS ISO
 on: [push]
 jobs:
   build:
@@ -12,5 +12,5 @@ jobs:
       - name: Subir ISO
         uses: actions/upload-artifact@v4
         with:
-          name: ITCM_OS_v1_ISO
-          path: ITCM_OS_v1.iso
+          name: DiosnicioOS_v1_ISO
+          path: DiosnicioOS_v1.iso
