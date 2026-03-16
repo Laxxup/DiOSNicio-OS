@@ -167,12 +167,24 @@ sudo umount -l "${CHROOT_DIR}/dev"  2>/dev/null || true
 sudo umount "${CHROOT_DIR}/sys"     2>/dev/null || true
 sudo umount "${CHROOT_DIR}/proc"    2>/dev/null || true
 
-# Config básica de fondo en pcmanfm (para /etc/skel)
+# Configuración global y básica de fondo en pcmanfm
+# 1. Configuración del sistema (Global - ¡Asegura que el LiveCD lo tome!)
+sudo mkdir -p "${CHROOT_DIR}/etc/xdg/pcmanfm/LXDE"
+cat <<'EOF' | sudo tee "${CHROOT_DIR}/etc/xdg/pcmanfm/LXDE/desktop.conf" >/dev/null
+[*]
+wallpaper_mode=fit
+wallpaper_common=1
+wallpaper=/usr/share/backgrounds/diosnicio-wallpaper.jpg
+bgcolor=#000000
+EOF
+
+# 2. Configuración para /etc/skel (Para cuando se instale el sistema)
 sudo mkdir -p "${CHROOT_DIR}/etc/skel/.config/pcmanfm/LXDE"
 cat <<'EOF' | sudo tee "${CHROOT_DIR}/etc/skel/.config/pcmanfm/LXDE/desktop.conf" >/dev/null
-[desktop]
-wallpaper=/usr/share/backgrounds/diosnicio-wallpaper.jpg
+[*]
 wallpaper_mode=fit
+wallpaper_common=1
+wallpaper=/usr/share/backgrounds/diosnicio-wallpaper.jpg
 bgcolor=#000000
 EOF
 
