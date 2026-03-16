@@ -14,7 +14,7 @@ IFS=$'\n\t'
 ISO_NAME="DiosnicioOS_v1.iso"
 CHROOT_DIR="$(pwd)/chroot"
 IMAGE_DIR="$(pwd)/image"
-
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUITE="daedalus"
 MIRROR="http://deb.devuan.org/merged"
 
@@ -134,9 +134,8 @@ EOF
 # ────────────────────────────────────────────────
 echo -e "${YELLOW}→ Copiando wallpaper y configurando skel${NC}"
 
-sudo mkdir -p "${CHROOT_DIR}/usr/share/backgrounds"
-if [[ -f wallpaperITCMOS.jpg ]]; then
-    sudo cp wallpaperITCMOS.jpg "${CHROOT_DIR}/usr/share/backgrounds/diosnicio-wallpaper.jpg"
+if [[ -f "${SCRIPT_DIR}/wallpaperITCMOS.jpg" ]]; then
+    sudo cp "${SCRIPT_DIR}/wallpaperITCMOS.jpg" "${CHROOT_DIR}/usr/share/backgrounds/diosnicio-wallpaper.jpg"
     echo "Wallpaper copiado correctamente"
 else
     echo -e "${YELLOW}Advertencia: wallpaperITCMOS.jpg no encontrado${NC}"
